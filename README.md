@@ -25,9 +25,7 @@ Importing CueSheet
 
 <!-- DO NOT EDIT: The section below will be automatically updated by build script -->
 ```scala
-resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
-
-libraryDependencies += "com.kakao.cuesheet" %% "cuesheet" % "0.10.0-SNAPSHOT"
+libraryDependencies += "com.kakao.cuesheet" %% "cuesheet" % "0.10.0"
 ```
 <!-- DO NOT EDIT: The section above will be automatically updated by build script -->
 
