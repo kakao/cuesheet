@@ -1,7 +1,7 @@
 CueSheet
 ========
 
-CueSheet is a framework for writing Apache Spark 2.x applications more conveniently, designed to neatly separate the concerns of the business logic and the deployment environment, as well as to minimize the usage of shell scripts which are inconvenient to write and do not support validation. CueSheet is featured in [Spark Summit East 2017](https://spark-summit.org/east-2017/events/no-more-sbt-assembly-rethinking-spark-submit-using-cuesheet/).
+CueSheet is a framework for writing Apache Spark 2.x applications more conveniently, designed to neatly separate the concerns of the business logic and the deployment environment, as well as to minimize the usage of shell scripts which are inconvenient to write and do not support validation. To jump-start, check out [cuesheet-starter-kit](https://github.com/jongwook/cuesheet-starter-kit) which provides the skeleton for building CueSheet applications. CueSheet is featured in [Spark Summit East 2017](https://spark-summit.org/east-2017/events/no-more-sbt-assembly-rethinking-spark-submit-using-cuesheet/).
 
 An example of a CueSheet application is shown below. Any Scala object extending `CueSheet` becomes a CueSheet application; the object body can then use the variables like `sc`, `sqlContext`, and `spark` to write the business logic, as if it is inside `spark-shell`:
 
