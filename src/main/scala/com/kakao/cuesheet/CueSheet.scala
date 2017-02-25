@@ -76,8 +76,9 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
 
     // prints the all jar files, inside the cluster; convenient for debugging
     if (isOnCluster) {
-      val jars = DependencyAnalyzer(loader).graph.nodes.map(_.path)
-      logger.info(s"jar files in current classloader $loader:\n${jars.mkString("\n")}")
+      // This code does not work in Kerberos environment.
+      // val jars = DependencyAnalyzer(loader).graph.nodes.map(_.path)
+      // logger.info(s"jar files in current classloader $loader:\n${jars.mkString("\n")}")
     }
   }
 

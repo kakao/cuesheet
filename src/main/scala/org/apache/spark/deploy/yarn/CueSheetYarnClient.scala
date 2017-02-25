@@ -8,6 +8,7 @@ import com.kakao.mango.reflect.Accessible
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.fs.{FileContext, FileSystem, FileUtil, Path}
+import org.apache.hadoop.security.UserGroupInformation
 import org.apache.hadoop.yarn.api.records.ApplicationId
 import org.apache.spark.SparkConf
 import org.apache.spark.deploy.yarn.Client.APP_FILE_PERMISSION
@@ -18,6 +19,12 @@ import scala.collection.mutable.ArrayBuffer
 class CueSheetYarnClient(args: ClientArguments, hadoopConf: Configuration, sparkConf: SparkConf) extends Client(args, hadoopConf, sparkConf) with Logging {
   val listeners = new ArrayBuffer[ApplicationId => Unit]
   def addListener(listener: ApplicationId => Unit): Unit = listeners += listener
+
+  override def prepareLocalResources(destDir: Path, pySparkArchives: Seq[String]) = {
+    // No idea why UserGroupInformation.isSecurityEnabled changes to `false`.
+    UserGroupInformation.setConfiguration(hadoopConf)
+    super.prepareLocalResources(destDir, pySparkArchives)
+  }
 
   override def submitApplication(): ApplicationId = {
     val appId = super.submitApplication()
