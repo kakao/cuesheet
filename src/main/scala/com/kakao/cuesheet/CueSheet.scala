@@ -71,15 +71,6 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
            |}}
          """.stripMargin)
     }
-
-    logger.info(s"ClassLoader for spark-hive: " + Class.forName("org.apache.spark.sql.hive.HiveContext").getClassLoader)
-
-    // prints the all jar files, inside the cluster; convenient for debugging
-    if (isOnCluster) {
-      // This code does not work in Kerberos environment.
-      // val jars = DependencyAnalyzer(loader).graph.nodes.map(_.path)
-      // logger.info(s"jar files in current classloader $loader:\n${jars.mkString("\n")}")
-    }
   }
 
   /** This method can be overridden to implement something to be executed before the application starts.
