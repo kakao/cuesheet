@@ -25,7 +25,7 @@ object HadoopUtils {
   def getHadoopXML(conf: Configuration): String = {
     YarnSparkHadoopUtil.escapeForShell(<configuration>{
       conf.iterator().collect {
-        case entry if defaultKeys.exists(entry.getKey.startsWith) =>
+        case entry if defaultKeys.exists(entry.getKey.startsWith) || entry.getKey.startsWith("hadoop.security") =>
           <property><name>{entry.getKey}</name><value>{entry.getValue}</value></property>
       }
     }</configuration>.toString())
