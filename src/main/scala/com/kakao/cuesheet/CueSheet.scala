@@ -160,13 +160,15 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
           sparkConf.setIfMissing("spark.executor.instances", "4")
         }
 
-        val arguments = ArrayBuffer("--jar", assembly, "--class", className)
+        if (!config.contains("cuesheet.install")) {
+          val arguments = ArrayBuffer("--jar", assembly, "--class", className)
 
-        arguments ++= args.flatMap { arg => Seq("--arg", arg) }
+          arguments ++= args.flatMap { arg => Seq("--arg", arg) }
 
-        logger.info(s"spark-submit arguments: ${arguments.mkString(" ")}")
+          logger.info(s"spark-submit arguments: ${arguments.mkString(" ")}")
 
-        CueSheetYarnClient.run(hadoopConf, sparkConf, arguments.toArray, saveApplicationId)
+          CueSheetYarnClient.run(hadoopConf, sparkConf, arguments.toArray, saveApplicationId)
+        }
 
         (sparkConf, hadoopConf)
       case SPARK =>
