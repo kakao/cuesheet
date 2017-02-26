@@ -16,6 +16,7 @@ import com.kakao.mango.logging.Logging
 import com.kakao.mango.text.Resource
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
+import org.apache.hadoop.security.UserGroupInformation
 
 import scala.xml.XML
 
@@ -100,6 +101,8 @@ object YarnConnector extends Logging {
 
     // this runs nonexistent python scripts, causing error messages to flood the console
     conf.unset("net.topology.script.file.name")
+
+    UserGroupInformation.setConfiguration(conf)
 
     (conf, base)
   }
