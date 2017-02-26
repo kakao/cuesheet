@@ -91,6 +91,12 @@ abstract class CueSheetBase(additionalSettings: (String, String)*)
         sparkConf.setJars(Array(assembly))
         sparkConf.setAll(config)
 
+        // Add all spark configuration to the system property;
+        // this will make SparkHadoopUtil to load UserGroupInformation properly.
+        sparkConf.getAll.foreach {
+          case (key, value) => System.setProperty(key, value)
+        }
+
         new SparkContext(sparkConf)
       }
       
