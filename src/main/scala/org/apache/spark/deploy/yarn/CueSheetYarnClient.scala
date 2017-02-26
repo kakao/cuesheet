@@ -7,6 +7,7 @@ import org.apache.hadoop.security.UserGroupInformation
 import org.apache.hadoop.yarn.api.records.{ApplicationId, LocalResource}
 import org.apache.spark.SparkConf
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -18,6 +19,13 @@ class CueSheetYarnClient(args: ClientArguments, hadoopConf: Configuration, spark
   override def prepareLocalResources(destDir: Path, pySparkArchives: Seq[String]): mutable.HashMap[String, LocalResource] = {
     // Prevent UserGroupInformation.isSecurityEnabled unexpectedly changing to `false`.
     UserGroupInformation.setConfiguration(hadoopConf)
+
+    // To pass the Hive configuration to `HiveConf` properly,
+    // all the configuration which starts with "hive." are passed by `System.setProperty`.
+    // Then, they are read in `HiveConf.applySystemProperties`.
+    hadoopConf.iterator().filter(_.getKey.startsWith("hive.")).foreach { e =>
+      System.setProperty(e.getKey, e.getValue)
+    }
     super.prepareLocalResources(destDir, pySparkArchives)
   }
 
