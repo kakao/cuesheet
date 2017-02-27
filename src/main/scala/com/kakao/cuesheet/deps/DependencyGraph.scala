@@ -1,4 +1,5 @@
-package com.kakao.cuesheet.deps
+package com.kakao.cuesheet
+package deps
 
 import com.kakao.mango.logging.Logging
 
@@ -13,7 +14,7 @@ class DependencyGraph(val nodes: Seq[DependencyNode]) extends Logging {
       val dep = ManagedDependency(node.group, node.artifact, node.classifier)
       if (!lookup.contains(dep)) {
         lookup.put(dep, node)
-      } else {
+      } else if (!isOnCluster) {
         logger.warn(s"Duplicate dependency $dep: ${lookup(dep)} and $node")
       }
     case node: UnmanagedDependencyNode =>
