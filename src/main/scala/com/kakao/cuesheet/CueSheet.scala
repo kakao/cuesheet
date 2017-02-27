@@ -3,12 +3,11 @@ package com.kakao.cuesheet
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import com.kakao.cuesheet.deps.DependencyAnalyzer
-import com.kakao.cuesheet.launcher.{JobAssembler, YarnConnector}
-import org.apache.hadoop.conf.Configuration
+import com.kakao.cuesheet.launcher.YarnConnector
+import org.apache.spark.SparkContext
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.yarn.CueSheetYarnClient
 import org.apache.spark.launcher.SparkLauncherHook
-import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
@@ -30,7 +29,7 @@ import scala.language.implicitConversions
   */
 abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetBase(additionalSettings: _*) with App {
 
-  import com.kakao.cuesheet.ExecutionConfig.{config, manager, master}
+  import com.kakao.cuesheet.ExecutionConfig.{config, manager}
 
   /** Overrides App.main to implement the entry point, instead of executing the main body.
     * The main class body is still accessible via super.main()
@@ -38,17 +37,16 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
   final override def main(args: Array[String]) {
     init()
 
-    val (sparkConf, hadoopConf) = if (ExecutionConfig.mode == CLIENT || isOnCluster) {
-      // launch the main class, if it is configured for client mode or if this JVM is inside cluster already.
-      runDriver(args)
+    if (config.contains("cuesheet.install") && !isOnCluster) {
+      installApplication(config("cuesheet.install"), args)
     } else {
-      // otherwise, deploy this application to the cluster
-      runDeploy(args)
-    }
-
-    // install the assembly to HDFS, and print the one-liner shell script to launch this application
-    if (manager != LOCAL && config.contains("cuesheet.install") && !isOnCluster) {
-      installApplication(sparkConf, hadoopConf, config("cuesheet.install"), args)
+      if (ExecutionConfig.mode == CLIENT || isOnCluster) {
+        // launch the main class, if it is configured for client mode or if this JVM is inside cluster already.
+        runDriver(args)
+      } else {
+        // otherwise, deploy this application to the cluster
+        runDeploy(args)
+      }
     }
   }
 
@@ -86,7 +84,7 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
     * and in cluster mode, this function is called inside a remote node,
     * while communicating with this JVM which is running [[runDeploy]].
     */
-  private def runDriver(args: Array[String]): (SparkConf, Configuration) = {
+  private def runDriver(args: Array[String]): Unit = {
     // maybe acquire streaming context, either from the checkpoint or a fresh one.
     val maybeStreaming = sparkConf.getOption("spark.streaming.checkpoint.path") match {
       case Some(checkpoint) =>
@@ -121,48 +119,22 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
     if (contextAvailable) {
       sc.stop()
     }
-
-    (sc.getConf, sc.hadoopConfiguration)
   }
 
   /** deploy the application to a remote cluster */
-  private def runDeploy(args: Array[String]): (SparkConf, Configuration) = {
+  private def runDeploy(args: Array[String]): Unit = {
     manager match {
       case YARN =>
-        val (hadoopConf, confPath) = YarnConnector.getConfiguration(master)
-        val assembly = JobAssembler.assembleDependencies(className, confPath)
-        val sparkJars = YarnConnector.getSparkJarsPath(hadoopConf, loader)
+        val assembly = buildAssembly()
 
-        logger.info(s"Launching $name to YARN cluster $master")
-        logger.info(s"Spark Jars: $sparkJars")
-        logger.info(s"Application assembly: $assembly")
-
-        sparkConf.set("spark.submit.deployMode", "cluster")
-        sparkConf.set("spark.yarn.jars", sparkJars)
-        sparkConf.set("spark.app.name", name)
-
-        sparkConf.set("spark.hdfs.jars", sparkJars)
-        sparkConf.set("spark.cuesheet.assembly", assembly)
-
-        sparkConf.setIfMissing("spark.driver.memory", "512m")
-        sparkConf.setIfMissing("spark.executor.memory", "512m")
-        sparkConf.setIfMissing("spark.task.cpus", "1")
-
-        if (sparkConf.get("spark.dynamicAllocation.enabled", "false") == "false") {
-          sparkConf.setIfMissing("spark.executor.instances", "4")
-        }
-
+        // skip launch when installing the application
         if (!config.contains("cuesheet.install")) {
-          val arguments = ArrayBuffer("--jar", assembly, "--class", className)
-
-          arguments ++= args.flatMap { arg => Seq("--arg", arg) }
-
+          val arguments = ArrayBuffer("--jar", assembly, "--class", className) ++ args.flatMap { arg => Seq("--arg", arg) }
           logger.info(s"spark-submit arguments: ${arguments.mkString(" ")}")
 
+          val hadoopConf = SparkHadoopUtil.get.newConfiguration(sparkConf)
           CueSheetYarnClient.run(hadoopConf, sparkConf, arguments.toArray, saveApplicationId)
         }
-
-        (sparkConf, hadoopConf)
       case SPARK =>
         throw new NotImplementedError("Spark Standalone mode not implemented yet")
       case MESOS =>
@@ -173,8 +145,14 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
     }
   }
 
-  private def installApplication(sparkConf: SparkConf, hadoopConf: Configuration, tag: String, args: Array[String]): Unit = {
-    val assembly = sparkConf.get("spark.cuesheet.assembly")
+  private def installApplication(tag: String, args: Array[String]): Unit = {
+    if (ExecutionConfig.manager != YARN) {
+      throw new RuntimeException("Installing is supported only in YARN for now")
+    }
+
+    val assembly = buildAssembly()
+    val hadoopConf = SparkHadoopUtil.get.newConfiguration(sparkConf)
+
     val uploadedAssembly = YarnConnector.uploadAssembly(hadoopConf, assembly, className, tag)
     val jarName = uploadedAssembly.split('/').last
     val sparkJars = sparkConf.get("spark.hdfs.jars")
@@ -188,7 +166,7 @@ abstract class CueSheet(additionalSettings: (String, String)*) extends CueSheetB
     val dir = s"${jarName.stripSuffix(".jar")}-$tag"
     val arguments = args.map(SparkLauncherHook.quoteForCommandString).mkString(" ")
 
-    println(
+    System.err.println(
       s"""
          |rm -rf $dir && mkdir $dir && cd $dir &&
          |echo $hadoopXML > core-site.xml &&
