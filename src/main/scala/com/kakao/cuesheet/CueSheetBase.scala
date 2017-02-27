@@ -49,6 +49,41 @@ abstract class CueSheetBase(additionalSettings: (String, String)*)
 
   private[cuesheet] def saveApplicationId(id: String): Unit = { applicationId = Some(id) }
 
+  /** build assembly to be launched in YARN cluster */
+  protected def buildAssembly(): String = {
+    val (hadoopConf, confPath) = YarnConnector.getConfiguration(master)
+    val assembly = JobAssembler.assembleDependencies(className, confPath)
+    val sparkJars = YarnConnector.getSparkJarsPath(hadoopConf, loader)
+
+    logger.info(s"Spark Jars: $sparkJars")
+    logger.info(s"Application assembly: $assembly")
+
+    sparkConf.set("spark.submit.deployMode", ExecutionConfig.mode.toString.toLowerCase())
+    sparkConf.set("spark.app.name", name)
+    sparkConf.set("spark.yarn.jars", sparkJars)
+    sparkConf.set("spark.hdfs.jars", sparkJars)
+    sparkConf.set("spark.cuesheet.assembly", assembly)
+
+    // disable the noisy topology script
+    sparkConf.remove("spark.hadoop.net.topology.script.file.name")
+
+    sparkConf.setIfMissing("spark.driver.memory", "512m")
+    sparkConf.setIfMissing("spark.executor.memory", "512m")
+    sparkConf.setIfMissing("spark.task.cpus", "1")
+
+    if (sparkConf.get("spark.dynamicAllocation.enabled", "false") == "false") {
+      sparkConf.setIfMissing("spark.executor.instances", "4")
+    }
+
+    // copy hadoop configurations to the spark configuration, with "spark.hadoop" prefix.
+    // this will then make SparkContext create its Hadoop configuration accordingly.
+    hadoopConf.iterator().foreach { entry =>
+      sparkConf.set("spark.hadoop." + entry.getKey, entry.getValue)
+    }
+
+    assembly
+  }
+
   /** create SparkContext according to the configuration */
   implicit lazy val sc: SparkContext = {
     contextAvailable = true
@@ -64,23 +99,7 @@ abstract class CueSheetBase(additionalSettings: (String, String)*)
           // no need to make assembly in local mode
           (master, "")
         } else if (manager == YARN) {
-          val (hadoopConf, base) = YarnConnector.getConfiguration(master)
-          val assembly = JobAssembler.assembleDependencies(className, base)
-          val sparkJars = YarnConnector.getSparkJarsPath(hadoopConf)
-
-          // copy hadoop configurations to the spark configuration, with "spark.hadoop" prefix.
-          // this will then make SparkContext create its Hadoop configuration accordingly.
-          hadoopConf.iterator().foreach { entry =>
-            sparkConf.set("spark.hadoop." + entry.getKey, entry.getValue)
-          }
-
-          // disable the noisy topology script
-          sparkConf.remove("spark.hadoop.net.topology.script.file.name")
-          sparkConf.set("spark.yarn.jars", sparkJars)
-          sparkConf.set("spark.hdfs.jars", sparkJars)
-          sparkConf.set("spark.cuesheet.assembly", assembly)
-
-          ("yarn-client", assembly)
+          ("yarn-client", buildAssembly())
         } else {
           // TODO: non-YARN cluster
           val assembly = JobAssembler.assembleDependencies(className)
