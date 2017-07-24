@@ -2,7 +2,7 @@ import scala.xml.transform.{RewriteRule, RuleTransformer}
 import scala.xml.{Comment, Elem, Node => XmlNode, NodeSeq => XmlNodeSeq}
 import UpdateReadme._
 
-val sparkVersion = "2.1.0"
+val sparkVersion = "2.2.0"
 
 val hadoopVersion = "2.7.3"
 

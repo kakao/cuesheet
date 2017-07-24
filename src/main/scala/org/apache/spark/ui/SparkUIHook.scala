@@ -18,7 +18,7 @@ case class SparkUIHook(sc: SparkContext) {
   
   def getUIAddress: String = {
     val ui = sc.ui.getOrElse { throw new SparkException("No Spark UI found!") }
-    ui.appUIAddress
+    ui.webUrl
   }
 
 }
